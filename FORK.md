@@ -56,7 +56,8 @@ omni 与内置平台一样参与搜索、播放、歌词、歌单/榜单/专辑�
 | `pr-unit-tests.yml`、`docker-stack-check.yml`、`linux-arm64-package-check.yml` | PR | 无害，但 `ubuntu-24.04-arm` 需要公开仓库或付费计划 |
 
 处理方式二选一：在仓库 Settings → Actions 里停用不需要的工作流，或者直接删掉这些文件再提交。
-本分叉**没有**删除它们，保持与上游一致。
+本分叉**已经删除了**除 `pr-unit-tests.yml` 之外的全部上游工作流，只保留 PR 与 main push 时的单元测试与
+typecheck（不发布产物、不依赖未配置的 secrets、不消耗定时额度）。
 
 ## 构建说明
 
