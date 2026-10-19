@@ -39,6 +39,22 @@ omni 与内置平台一样参与搜索、播放、歌词、歌单/榜单/专辑�
 `crypto-js@4.2.0`、`dayjs@1.11.13`、`big-integer@1.6.52`（以及 `@types/crypto-js@4.2.2`），
 用于向插件提供它们在 MusicFree 里能 `require` 到的库。版本钉死，与本仓库其它音乐平台依赖的约定一致。
 
+## 上游 CI 在分叉里的注意事项
+
+`.github/workflows/` 是上游的流水线，原样带过来后会在这个仓库里也触发。公开前建议按需处理：
+
+| 工作流 | 触发 | 在分叉里的问题 |
+| --- | --- | --- |
+| `nightly-pre-release.yml` | 每天 02:00 UTC 定时 | 会持续消耗 Actions 额度并发布预发布包 |
+| `triage-issues.yml`、`triage-pr.yml`、`triage-stale.yml` | issue / PR 事件、定时 | 依赖上游的 DeepSeek 密钥与 triage 服务 |
+| `electron-release.yml`、`canary-pre-release.yml`、`release-candidate.yml` | push 到 main 的 `realeco-release`、手动 | 依赖签名证书、AUR 私钥等未配置的 secrets |
+| `docker-stack-publish.yml`、`sync-server-docker-publish.yml` | push 到 main 的特定路径 | 依赖 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` |
+| `codemap-sync.yml` | push 到 main | 会改写 `docs/CODEMAP.md` |
+| `pr-unit-tests.yml`、`docker-stack-check.yml`、`linux-arm64-package-check.yml` | PR | 无害，但 `ubuntu-24.04-arm` 需要公开仓库或付费计划 |
+
+处理方式二选一：在仓库 Settings → Actions 里停用不需要的工作流，或者直接删掉这些文件再提交。
+本分叉**没有**删除它们，保持与上游一致。
+
 ## 构建说明
 
 本分叉在无法访问 `github.com` 的环境里打过包，因此**跳过了**上游 `beforePack` / `afterPack`
