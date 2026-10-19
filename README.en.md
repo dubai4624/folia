@@ -37,6 +37,19 @@ Lyrics Reimagined // 辞曲新境
 
 </div>
 
+## Added by this fork (dubai)
+
+> Fork author: **dubai**. The features below are added by this fork and are not part of upstream `chthollyphile/folia-major`.
+
+- **MusicFree plugin sources**: install MusicFree plugins (JS source or a plugin-market list) into Folia, registered as online music sources that work alongside built-in platforms for search, playback, lyrics, and sheets/rankings/albums. Entry: **Settings → Music source plugins**, or search `musicfree` in the command palette. Supports install, enable/disable, reorder, update, uninstall/clear all, alternative plugins, and importing a song/playlist.
+- **Search lists every source**: the search overlay's online sources changed from "only the active platform" to "every registered source", with the active one first; installed plugins are searchable without switching.
+- **Online lyric matching for plugin sources**: plugin-source songs match lyrics online by default (searched across built-in NetEase / AMLL / QQ / Kugou), on first and later loads alike; a plugin's own `getLyric` failing falls back automatically, so plugin sources no longer end up with no lyrics.
+- **In-app attribution**: Settings → Help → Version shows "Fork author: dubai".
+
+See [FORK.md](FORK.md) for the full change list.
+
+---
+
 ## About
 
 Folia is an online music player built around full-screen, immersive lyrics. It supports NetEase Cloud Music, Kugou, QQ Music, Navidrome, and local music libraries; the desktop app also supports Bodian Music, YouTube Music, and Spotify. Smart lyric matching, AI-generated color themes, and a range of full-screen lyric animations make listening feel different.
@@ -48,7 +61,8 @@ To use Folia on a phone or in a browser, [deploy the web app to Vercel in one cl
 ## Quick download
 
 > [!TIP]
-> - **GitHub**: [Latest Release](https://github.com/chthollyphile/folia-major/releases/latest) has installers for Windows, macOS, and Linux.
+> - **This fork (dubai)**: [Releases](https://github.com/dubai4624/folia/releases) has the Windows installer with MusicFree plugin sources.
+> - **Upstream**: [Latest Release](https://github.com/chthollyphile/folia-major/releases/latest) has installers for Windows, macOS, and Linux.
 > - **Cloud drives** (faster in mainland China): [Quark](https://pan.quark.cn/s/6e4c6fa3bc6f) · [Baidu](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) (code `flia`). Stable installers for Windows and Apple silicon only.
 >
 > For other options (web deployment, Docker, AUR, Flatpak, community mobile port), see [Get Folia](#get-folia) below.

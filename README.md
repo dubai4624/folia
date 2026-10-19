@@ -38,6 +38,19 @@ Lyrics Reimagined // 辞曲新境
 
 </div>
 
+## 本分叉（dubai）新增
+
+> 二次开发作者：**dubai**。以下功能是本分叉在原版基础上新增的，不属于上游 `chthollyphile/folia-major`。
+
+- **MusicFree 插件音源**：把 MusicFree 的插件（JS 源码或插件市场清单）装进 Folia，登记成在线音源，与内置平台一样参与搜索、播放、歌词、歌单/榜单/专辑。入口：**设置 → 音乐源插件**，或命令面板搜 `musicfree`。支持安装、启停、排序、更新、卸载/清空全部、替代插件、导入单曲/歌单。
+- **搜索页签列出全部音源**：搜索浮层的在线来源从「只有当前平台」改成「注册表里所有在线音源」，当前平台排第一；插件源装上即可搜，无需先切换。
+- **插件源在线歌词匹配**：插件源歌曲默认走在线匹配（用内置网易云 / AMLL / QQ / 酷狗等源搜歌词），首次与后续加载都自动匹配；插件源自带 `getLyric` 失败时自动兜底，不再出现「插件源无歌词」的情况。
+- **应用内关于页署名**：设置 → 帮助 → 版本区显示「二开作者：dubai」。
+
+完整改动说明见 [FORK.md](FORK.md)。
+
+---
+
 ## 项目简介
 
 Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，支持网易云、酷狗、QQ 音乐、Navidrome 和本地音乐库，桌面端还支持波点音乐、YouTube Music 和 Spotify，通过智能歌词匹配，AI生成配色主题，以及多种全屏歌词动画为用户提供独特的听歌体验。
@@ -49,7 +62,8 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 ## 快速下载
 
 > [!TIP]
-> - **GitHub**：[Latest Release](https://github.com/chthollyphile/folia-major/releases/latest)，提供 Windows / macOS / Linux 全平台安装包。
+> - **本分叉（dubai）**：[Releases](https://github.com/dubai4624/folia/releases)，提供含 MusicFree 插件音源的 Windows 安装包。
+> - **上游原版**：[Latest Release](https://github.com/chthollyphile/folia-major/releases/latest)，提供 Windows / macOS / Linux 全平台安装包。
 > - **网盘**：[夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) · [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia)（提取码 `flia`），适合国内网络，仅提供 Windows 与 Apple silicon 的正式版安装包。
 >
 > 更多获取方式（Web 部署、Docker、AUR、Flatpak、社区移动版）见下方 [获取方式](#获取方式)。
