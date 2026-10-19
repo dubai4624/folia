@@ -44,7 +44,6 @@ Lyrics Reimagined // 辞曲新境
 - **MusicFree plugin sources**: install MusicFree plugins (JS source or a plugin-market list) into Folia, registered as online music sources that work alongside built-in platforms for search, playback, lyrics, and sheets/rankings/albums. Entry: **Settings → Music source plugins**, or search `musicfree` in the command palette. Supports install, enable/disable, reorder, update, uninstall/clear all, alternative plugins, and importing a song/playlist.
 - **Search lists every source**: the search overlay's online sources changed from "only the active platform" to "every registered source", with the active one first; installed plugins are searchable without switching.
 - **Online lyric matching for plugin sources**: plugin-source songs match lyrics online by default (searched across built-in NetEase / AMLL / QQ / Kugou), on first and later loads alike; a plugin's own `getLyric` failing falls back automatically, so plugin sources no longer end up with no lyrics.
-- **In-app attribution**: Settings → Help → Version shows "Fork author: dubai".
 
 See [FORK.md](FORK.md) for the full change list.
 
