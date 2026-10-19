@@ -1644,6 +1644,7 @@ export default {
     "openCommandPaletteQueue": "Buka antrean di palette perintah",
     "browserFullscreen": "Layar penuh",
     "madeBy": "Proyek:",
+    "forkAuthor": "Penulis fork:",
     "joinCommunity": "Gabung komunitas",
     "communityDiscord": "Server Discord",
     "communityDiscordHint": "Buka tautan undangan",

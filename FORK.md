@@ -4,6 +4,9 @@
 基于上游 **0.7.21**。许可证为 AGPL-3.0（见 [LICENSE](LICENSE)），版权归上游作者与各贡献者所有；
 本分叉保留原许可证与全部版权声明。
 
+**二次开发作者：dubai**（本分叉中 MusicFree 插件音源、在线歌词匹配、搜索来源等改动由 dubai 提供，
+上游代码与版权仍归上游作者所有）。
+
 ## 新增：MusicFree 插件音源
 
 把 [MusicFree](https://github.com/maotoumao/MusicFree) 的插件（一段导出 `platform` / `search` /

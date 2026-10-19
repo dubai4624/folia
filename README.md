@@ -16,6 +16,7 @@ Lyrics Reimagined // 辞曲新境
 > 上游版本 0.7.21，遵循 AGPL-3.0（见 [LICENSE](LICENSE)），版权归上游作者与各贡献者所有。
 > 本分叉的全部改动见下方「本分叉的改动」和 [FORK.md](FORK.md)。
 > 上游的项目简介、下载渠道、Discord、赞助等链接仍指向上游，与本分叉无关。
+> 二次开发作者：**dubai**（MusicFree 插件音源、在线歌词匹配、搜索来源等改动）。
 
 [![GitHub release](https://img.shields.io/github/v/release/chthollyphile/folia-major?label=release)](https://github.com/chthollyphile/folia-major/releases)
 [![License](https://img.shields.io/github/license/chthollyphile/folia-major)](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)

@@ -22,6 +22,8 @@ import { iconLabel } from './iconLabel';
 
 const REPOSITORY_URL = 'https://github.com/chthollyphile/folia-major';
 const REPOSITORY_NAME = 'chthollyphile/folia-major';
+// 本分叉中 MusicFree 插件音源、在线歌词匹配等改动的作者；上游版权仍归上游作者。
+const FORK_AUTHOR = 'dubai';
 const BUILD_KIND = getBuildKind();
 const VERSION_INFO = (__DOCKER_STACK_VERSION__
     ? `${__APP_VERSION_LABEL__} v${__APP_VERSION__} · Stack ${__DOCKER_STACK_VERSION__} · ${__COMMIT_HASH__}`
@@ -173,6 +175,9 @@ const HelpPage: React.FC<HelpPageProps> = ({ onOpenReleaseNotes, onOpenAiHelp, o
                         {REPOSITORY_NAME}
                         <ExternalLink size={12} />
                     </Button>
+                </Row>
+                <Row label={t('help.forkAuthor')}>
+                    <span className="select-text text-sm text-[color:var(--st-t1)]">{FORK_AUTHOR}</span>
                 </Row>
             </Group>
         </>

@@ -1644,6 +1644,7 @@ export default {
     "openCommandPaletteQueue": "直接打开命令面板队列",
     "browserFullscreen": "全屏",
     "madeBy": "项目：",
+    "forkAuthor": "二开作者：",
     "joinCommunity": "加入社区",
     "communityDiscord": "Discord 社区",
     "communityDiscordHint": "打开邀请链接",

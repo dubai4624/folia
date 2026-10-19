@@ -1644,6 +1644,7 @@ export default {
     "openCommandPaletteQueue": "Open queue in command palette",
     "browserFullscreen": "Fullscreen",
     "madeBy": "Project:",
+    "forkAuthor": "Fork author:",
     "joinCommunity": "Join the community",
     "communityDiscord": "Discord server",
     "communityDiscordHint": "Open the invite link",

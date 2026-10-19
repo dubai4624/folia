@@ -17,6 +17,7 @@ Lyrics Reimagined // 辞曲新境
 > upstream author and contributors. Everything this fork changes is listed below under "Changes in this fork"
 > and in [FORK.md](FORK.md). Upstream links (downloads, Discord, donations) still point at upstream and are not
 > about this fork.
+> Fork author: **dubai** (the MusicFree plugin sources, online lyric matching, and search-source changes).
 
 [![GitHub release](https://img.shields.io/github/v/release/chthollyphile/folia-major?label=release)](https://github.com/chthollyphile/folia-major/releases)
 [![License](https://img.shields.io/github/license/chthollyphile/folia-major)](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)
