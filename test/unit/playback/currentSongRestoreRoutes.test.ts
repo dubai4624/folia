@@ -128,6 +128,7 @@ const { clearPlaybackRepresentationsForTests, registerPlaybackRepresentation } =
 const { buildLocalSourceRevision } = await import('@/services/playbackRecovery/sourceRevision');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
+const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
 const unavailable = (caseId: OnlineFailureCaseId = 'no-audio') => ({
     kind: 'unavailable', failure: onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId } }),
 });
@@ -343,6 +344,13 @@ describe('restoring the last session and the current song', () => {
         return effectNaming('last_song');
     };
 
+    // A song that came from a MusicFree plugin source: restoring it must not move the home/active
+    // provider off the platform the user signed into (e.g. QQ).
+    const pluginSourceSong: SongResult = {
+        id: 'p1', name: 'P', artists: [], album: { id: '', name: '' }, durationMs: 1000,
+        sourceRef: { kind: 'online', providerId: 'musicfree.SomePlugin', mediaId: 'p1' },
+    };
+
     it('gives up when a song was asked for while the remembered one was being read', async () => {
         const { refs, watch, setLyrics } = watchWithRefs();
         const restore = restoreLastSession(refs, setLyrics);
@@ -435,6 +443,41 @@ describe('restoring the last session and the current song', () => {
             'wait audio source x1 | song=X key=online:bodian:x1',
             'audio=https://audio.test/x1 key=online:bodian:x1',
         ]);
+    });
+
+    it('does not move the active provider off the signed-in platform when the remembered song is from a plugin source', async () => {
+        const { refs, setLyrics } = watchWithRefs();
+        // The user signed into QQ; the last song they played came from a plugin source.
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+        env.cache.set('last_song', pluginSourceSong);
+        env.cache.set('last_queue', [pluginSourceSong]);
+        useSessionRestoreController({
+            blobUrlRef: refs.blobUrlRef,
+            currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+            setLyrics,
+            restoreCachedThemeForSong: vi.fn(async () => 'none'),
+            persistLastPlaybackCache: vi.fn(async () => undefined),
+            clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
+            loadLocalSongs: vi.fn(async () => undefined),
+            loadLocalPlaylists: vi.fn(async () => undefined),
+            shouldAutoPlayRef: refs.shouldAutoPlay,
+        } as never);
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        effectNaming('last_song')();
+        await settle();
+
+        // The home/active provider stays QQ: restoring a plugin-source song must not steal it.
+        expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('qq');
+    });
+
+    it('still aligns the active provider for a remembered built-in song', async () => {
+        const { refs, setLyrics } = watchWithRefs();
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+        restoreLastSession(refs, setLyrics)();
+        await settle();
+
+        // A built-in song (bodian) does move the active provider to its own platform.
+        expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('bodian');
     });
 });
 

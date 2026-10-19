@@ -3,7 +3,7 @@ import { saveToCache } from './db';
 import { PrefetchedSongData, isUrlValid, updatePrefetchedAudioUrl } from './prefetchService';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
-import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, resolveOnlineLyricsPureMusic, saveOnlineLyricsState } from '../utils/onlineLyricsState';
+import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, resolveOnlineLyricsPureMusic, saveOnlineLyricsState, hasUsableOnlineOverride } from '../utils/onlineLyricsState';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
 import { createSafeObjectUrl } from '../utils/blobGuards';
@@ -202,8 +202,11 @@ export async function loadOnlineSongLyrics(
     const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
     if (!isCurrent()) return;
     const preferredCachedLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
+    // 用户明确选过（导入，或一个真的带着歌词/纯音乐标记的在线覆盖）才算「权威选择」。
+    // 半截覆盖（hasOnlineOverride 为真却无歌词、也没标纯音乐）不算，否则它会走下面的空快路，
+    // 或挡住主流程的自动匹配。
     const hasAuthoritativeLyricsSelection = onlineLyricsState?.lyricsSource === 'imported'
-        || Boolean(onlineLyricsState?.hasOnlineOverride);
+        || hasUsableOnlineOverride(onlineLyricsState);
     if (preferredCachedLyrics && (hasAuthoritativeLyricsSelection || !initialSettingsLyricSettings.autoUseBestLyric)) {
         const cachedText = preferredCachedLyrics.lines.map(line => line.fullText).join('\n');
         onPureMusicChange?.(resolveOnlineLyricsPureMusic(onlineLyricsState, cachedText));
@@ -225,7 +228,10 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+        // 同主流程：插件源没有自己的歌词能力，自动匹配是它唯一来源，不能因开关关闭就跳过；
+        // 半截覆盖状态同样不能挡住重新匹配。
+        const shouldAutoMatch = !hasUsableOnlineOverride(onlineLyricsState)
+            && (settingsLyricSettings.autoUseBestLyric || !omni.canSongProviderLyrics(song));
 
         if (!shouldAutoMatch) {
             const effectiveText = effectiveLyrics?.lines.map(line => line.fullText).join('\n') ?? '';
@@ -252,7 +258,23 @@ export async function loadOnlineSongLyrics(
             chorusRanges: [],
           }
         : await (async () => {
-            const result = await omni.getLyrics(song, { userId });
+            let result;
+            try {
+                result = await omni.getLyrics(song, { userId });
+            } catch (error) {
+                // 插件源（musicfree.*）的 getLyric 是「尽力而为」：它内部请求可能被拦截/失败
+                // （如 net::ERR_BLOCKED_BY_CLIENT），抛错时这里不能让它把整条链打断在取歌词这一步——
+                // 那样自动匹配永远跑不到，歌词就空白。降级成「没有歌词」，让下面的自动匹配接管。
+                // 内置来源的失败仍照常抛出，保持它们原有的错误语义不变。
+                const providerId = getOnlineProviderIdForSong(song);
+                const isPluginSource = Boolean(providerId?.startsWith('musicfree.'));
+                if (isPluginSource) {
+                    console.warn('[OnlinePlayback] Plugin source lyric fetch failed; falling back to auto-match', error);
+                    result = { lyrics: null, isPureMusic: false };
+                } else {
+                    throw error;
+                }
+            }
             return {
                 mainLrc: result.mainText ?? null,
                 yrcLrc: result.wordByWordText ?? null,
@@ -270,7 +292,13 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+    // 这首歌自己的来源没有歌词能力（MusicFree 插件源只提供播放/搜索、没有 getLyric）：在线自动匹配
+    // 是它唯一的歌词来源，不能因为「自动使用最佳歌词」被关掉就留白。内置源有自己的 getLyric，逻辑不变。
+    // `hasUsableOnlineOverride` 而不是 `!hasOnlineOverride`：历史数据里的半截覆盖状态（hasOnlineOverride
+    // 为 true 却无歌词、也没标纯音乐）不该挡住重新匹配，否则那首歌就永久空白。
+    const providerLacksLyrics = !omni.canSongProviderLyrics(song);
+    const shouldAutoMatch = !hasUsableOnlineOverride(onlineLyricsState)
+        && (settingsLyricSettings.autoUseBestLyric || providerLacksLyrics);
 
     if (shouldAutoMatch) {
         // The lyrics in hand are already displayable, so hand them over and report done BEFORE the
@@ -318,6 +346,11 @@ export async function loadOnlineSongLyrics(
                     matchedLyricsProviderPlatform: bestMatch.matchedLyricsProviderPlatform,
                 };
                 await saveOnlineLyricsState(song, overrideState);
+                // 匹配到的歌词同时写进通用缓存：这次加载若因切歌被丢弃（isCurrent 变 false），
+                // 下一次播放（以及任何缓存读取）也能直接从缓存拿到，不用再等一轮自动匹配——
+                // 否则就是「第一次没歌词、第二次才有」。
+                saveToCache(lyricCacheKey, bestMatch.lyrics);
+                saveLyricCacheSongMetadata(song);
                 resolvedLyrics = bestMatch.lyrics;
                 finalState = overrideState;
                 onStateChange?.(overrideState);

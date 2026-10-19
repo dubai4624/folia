@@ -10,7 +10,7 @@ import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
-import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
+import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState, hasUsableOnlineOverride } from '../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { nextTransitionSong, queueIndexOf } from '../utils/playbackNeighbors';
@@ -348,7 +348,11 @@ const prefetchSong = async (
   const settingsLyricSettings = useLyricSettingsStore.getState();
                 const autoUseBest = settingsLyricSettings.autoUseBestLyric;
                 const preferredSource = settingsLyricSettings.preferredAlternativeLyricSource;
-                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride;
+                // 插件源没有自己的歌词能力，自动匹配是它唯一来源；关掉开关也不能让它预取留白。
+                // 半截覆盖状态（hasOnlineOverride 为真却无歌词、也没标纯音乐）同样不能挡住重新匹配。
+                const providerLacksLyrics = !omni.canSongProviderLyrics(song);
+                const shouldAutoMatch = !hasUsableOnlineOverride(onlineLyricsState)
+                    && (autoUseBest || providerLacksLyrics);
 
                 if (shouldAutoMatch) {
                     try {

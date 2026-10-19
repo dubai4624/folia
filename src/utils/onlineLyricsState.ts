@@ -56,6 +56,17 @@ export const resolveOnlineLyrics = (
 };
 
 /**
+ * 这个覆盖状态是不是真的「锁定了歌词」：要么带着歌词、要么明确标记成纯音乐。历史数据里可能
+ * 留下 `hasOnlineOverride: true` 却两者皆空的半截状态（某次保存中断、旧版逻辑），它会让
+ * `shouldAutoMatch` 的 `!hasOnlineOverride` 第一道闸把自动匹配永远挡在门外，同时 `resolveOnlineLyrics`
+ * 又返回 null——结果就是「怎么都不出歌词」。这种覆盖不算覆盖，应当允许重新匹配。
+ */
+export const hasUsableOnlineOverride = (state: OnlineLyricsState | null | undefined): boolean => (
+    Boolean(state?.hasOnlineOverride)
+    && (Boolean(state?.onlineOverrideLyrics) || state?.matchedIsPureMusic === true)
+);
+
+/**
  * Whether the stored lyrics mean "instrumental", decided the way cached playback decides it:
  * an online match that recorded a verdict is trusted as-is; anything else (an imported file, or a
  * match from before the verdict was stored) falls back to reading the lyric text.

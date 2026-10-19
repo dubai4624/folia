@@ -41,7 +41,7 @@ import type { AudioQualityPreference, MediaId, ProviderCollection } from '../../
 import type { PlaybackSnapshot, PlaybackNavigationOptions } from '../../../../types/appPlayback';
 import { getNavidromeMatchCacheKey, type NavidromeMatchData, type NavidromeSong } from '../../../../types/navidrome';
 import { applyQueueAddBehavior } from '../../../../utils/queueAddBehavior';
-import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState, getOnlineLyricsStateCacheKey } from '../../../../utils/onlineLyricsState';
+import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState, getOnlineLyricsStateCacheKey, hasUsableOnlineOverride } from '../../../../utils/onlineLyricsState';
 import { hasLocalSongCover } from '../../../../utils/localSongCover';
 import { isSameLocalSongRecord } from '../../../../utils/localSongRecordEquality';
 import { getLocalCoverAssetUrl } from '../../../../services/localCoverAssetUrl';
@@ -314,13 +314,18 @@ export function useLibraryPlaybackController({
 
     const loadBaseOnlineLyrics = useCallback(async (
         onlineSong: SongResult,
-        fallbackLyrics: LyricData | null = lyrics
+        fallbackLyrics: LyricData | null = lyrics,
+        // 换歌词来源时传 true：曲库里的歌、预取里那份、以及调用方的兜底都属于「之前那次」，
+        // 不能当成新来源的结果。这时只问这首歌自己的来源要一次。
+        freshFromProvider = false,
     ): Promise<LyricData | null> => {
-        const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', onlineSong, migrateLyricDataRenderHints);
-        if (cachedLyrics) return cachedLyrics;
+        if (!freshFromProvider) {
+            const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', onlineSong, migrateLyricDataRenderHints);
+            if (cachedLyrics) return cachedLyrics;
 
-        const prefetched = getPrefetchedData(onlineSong, audioQuality);
-        if (prefetched?.lyrics) return prefetched.lyrics;
+            const prefetched = getPrefetchedData(onlineSong, audioQuality);
+            if (prefetched?.lyrics) return prefetched.lyrics;
+        }
 
         return (await omni.getLyrics(onlineSong, { userId })).lyrics ?? fallbackLyrics;
     }, [audioQuality, lyrics, userId]);
@@ -1274,21 +1279,71 @@ export function useLibraryPlaybackController({
 
         try {
             await saveOnlineLyricsState(currentSong, nextState);
-            const baseLyrics = await loadBaseOnlineLyrics(currentSong, lyrics);
-            const nextLyrics = resolveOnlineLyrics(nextState, baseLyrics);
+            // 切来源就是换一份结果：先清空、进入「正在取」，再取这份来源自己的歌词。
+            // 这一次不能拿屏幕上正显示的歌词做兜底——它常常正是切换前那一份「没有歌词」的空白，
+            // 退回来就让切换看起来完全没生效，而这正是要修的情况。
+            const playing = isStillPlaying(currentSong);
+            if (playing) {
+                setIsLyricsLoading(true);
+                setLyrics(null);
+                setCurrentLineIndex(-1);
+            }
+            const baseLyrics = await loadBaseOnlineLyrics(currentSong, null, true);
+            let nextLyrics = resolveOnlineLyrics(nextState, baseLyrics);
+
+            // 切到「在线」而这首歌自己的来源没有歌词（MusicFree 插件源只提供播放/搜索、没有 getLyric）
+            // 且没有有效的手工匹配覆盖：像正常播放那样跑一次自动匹配，用内置歌词源搜。否则切完还是空白，
+            // 只有再次播放才补上，看起来就像「切换的时候歌词不出来」。
+            if (source === 'online' && !hasUsableOnlineOverride(nextState) && !hasRenderableLyrics(nextLyrics)) {
+                try {
+                    const metadata = getProviderSongMetadata(currentSong);
+                    const artistName = metadata.artists.map(artist => artist.name).filter(Boolean).join(', ');
+                    const sourceRef = getPlaybackSourceRef(currentSong);
+                    const ownLyricSource = getPlatformLyricSource(sourceRef.kind === 'online' ? sourceRef.providerId : null);
+                    const bestMatch = await autoMatchBestLyric(currentSong.name, artistName, metadata.durationMs, {
+                        album: metadata.album?.name,
+                        preferredSource: useLyricSettingsStore.getState().preferredAlternativeLyricSource,
+                        alternateArtist: () => omni.getAlternateArtistName(currentSong),
+                        providerCandidate: ownLyricSource
+                            ? { providerId: ownLyricSource.id, song: currentSong, lyricsResult: { lyrics: baseLyrics, isPureMusic: false } }
+                            : undefined,
+                    });
+                    if (bestMatch && 'lyrics' in bestMatch) {
+                        nextState.hasOnlineOverride = true;
+                        nextState.onlineOverrideLyrics = bestMatch.lyrics;
+                        nextState.matchedSongId = bestMatch.id;
+                        nextState.matchedIsPureMusic = false;
+                        nextState.matchedLyricsSource = bestMatch.source;
+                        nextState.matchedLyricsProviderPlatform = bestMatch.matchedLyricsProviderPlatform;
+                        await saveOnlineLyricsState(currentSong, nextState);
+                        nextLyrics = bestMatch.lyrics;
+                    }
+                } catch (error) {
+                    console.warn('[App] Failed to auto-match on lyric source switch', error);
+                }
+            }
+
             const updatedSong = { ...currentSong, onlineLyricsState: nextState };
             setCurrentSong(prev => isSamePlaybackSong(prev, currentSong) ? updatedSong : prev);
             setLyrics(nextLyrics);
             setCurrentLineIndex(-1);
+            setIsLyricsLoading(false);
             // The lyrics are set; a song still playing that was left without any may get some from a mod.
-            if (isStillPlaying(currentSong)) supplyLyricsAfterEmptyLoad();
+            if (playing) supplyLyricsAfterEmptyLoad();
             await persistLastPlaybackCache(updatedSong, playQueue);
-            setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched') || '' });
+            const hasLyrics = hasRenderableLyrics(nextLyrics);
+            setStatusMsg({
+                type: hasLyrics ? 'success' : 'info',
+                text: hasLyrics
+                    ? (t('status.lyricsSourceSwitched') || '')
+                    : (t('localMusic.noLyricsAvailable') || ''),
+            });
         } catch (error) {
             console.error('Failed to switch online lyrics source', error);
+            setIsLyricsLoading(false);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
         }
-    }, [currentSong, loadBaseOnlineLyrics, lyrics, persistLastPlaybackCache, playQueue, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
+    }, [currentSong, isStillPlaying, loadBaseOnlineLyrics, persistLastPlaybackCache, playQueue, setCurrentLineIndex, setIsLyricsLoading, setCurrentSong, setLyrics, setStatusMsg, t]);
 
     const handleOnlineLyricMatchComplete = useCallback(async (matchedFor: SongResult) => {
         closeLyricMatchOf(matchedFor);

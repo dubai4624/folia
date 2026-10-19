@@ -134,10 +134,17 @@ export function useSessionRestoreController({
 
                 console.log('[Session] Restoring last song:', lastSong.name);
                 if (lastSong.sourceRef?.kind === 'online' && lastSong.sourceRef.providerId) {
-                    const currentActiveProviderId = useOnlineProviderAccountStore.getState().activeProviderId;
-                    if (currentActiveProviderId !== lastSong.sourceRef.providerId) {
-                        console.log(`[Session] Aligning active provider to restored song provider: ${lastSong.sourceRef.providerId}`);
-                        useOnlineProviderAccountStore.getState().setActiveProviderId(lastSong.sourceRef.providerId);
+                    // 插件源不是用户常驻的主页：用户登录在一个内置平台、顺手用插件源搜索播放的歌，
+                    // 重启恢复时不该把主页（活跃平台）抢过去，保持用户原来登录/选择的平台。内置平台仍对齐。
+                    // 这里不 import pluginProvider 的 isMusicFreeProviderId：核心播放路径不该为一个
+                    // 字符串判断引入插件宿主整棵依赖树（crypto-js 等）。
+                    const isPluginSource = lastSong.sourceRef.providerId.startsWith('musicfree.');
+                    if (!isPluginSource) {
+                        const currentActiveProviderId = useOnlineProviderAccountStore.getState().activeProviderId;
+                        if (currentActiveProviderId !== lastSong.sourceRef.providerId) {
+                            console.log(`[Session] Aligning active provider to restored song provider: ${lastSong.sourceRef.providerId}`);
+                            useOnlineProviderAccountStore.getState().setActiveProviderId(lastSong.sourceRef.providerId);
+                        }
                     }
                 }
                 makeSongCurrent(lastSong);

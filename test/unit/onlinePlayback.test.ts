@@ -8,6 +8,8 @@ const otherArtistNameMock = vi.hoisted(() => vi.fn());
 const autoMatchMock = vi.hoisted(() => vi.fn());
 const loadLyricsStateMock = vi.hoisted(() => vi.fn());
 const saveLyricsStateMock = vi.hoisted(() => vi.fn());
+const canSongProviderLyricsMock = vi.hoisted(() => vi.fn(() => true));
+const autoUseBestLyricMock = vi.hoisted(() => vi.fn(() => true));
 const isUrlValidMock = vi.hoisted(() => vi.fn(() => true));
 const updatePrefetchedAudioUrlMock = vi.hoisted(() => vi.fn());
 
@@ -24,12 +26,14 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         getAlternateArtistName: otherArtistNameMock,
         resolveAudioQuality: (_providerId: string, preference: string) => preference,
         isPreviewAudioSource: () => false,
+        // 默认内置源有自己的歌词能力；插件源无歌词的用例把它改成 false。
+        canSongProviderLyrics: canSongProviderLyricsMock,
     },
 }));
 
 vi.mock('@/stores/useLyricSettingsStore', () => ({
     useLyricSettingsStore: {
-        getState: () => ({ autoUseBestLyric: true, preferredAlternativeLyricSource: 'qq' }),
+        getState: () => ({ autoUseBestLyric: autoUseBestLyricMock(), preferredAlternativeLyricSource: 'qq' }),
     },
 }));
 
@@ -375,6 +379,8 @@ describe('online QQ lyric candidate plumbing', () => {
         vi.clearAllMocks();
         songCacheMock.mockResolvedValue(null);
         loadLyricsStateMock.mockResolvedValue(null);
+        canSongProviderLyricsMock.mockReturnValue(true);
+        autoUseBestLyricMock.mockReturnValue(true);
     });
 
     it('passes the already-loaded QQ song and lyrics to auto-match as its provider candidate', async () => {
@@ -477,6 +483,64 @@ describe('online QQ lyric candidate plumbing', () => {
         finishAutoMatch();
         await pending;
     });
+
+    it('still auto-matches a plugin source with no own lyrics even when the setting is off', async () => {
+        // MusicFree 插件源没有 getLyric（canSongProviderLyrics false），在线匹配是它唯一的歌词
+        // 来源。即使「自动使用最佳歌词」被关掉，也不能留白——这是插件源歌曲此前首次无歌词的根因。
+        autoUseBestLyricMock.mockReturnValue(false);
+        canSongProviderLyricsMock.mockReturnValue(false);
+        const pluginSong: SongResult = {
+            ...song,
+            sourceRef: { kind: 'online', providerId: 'musicfree.SomePlugin', mediaId: 'online-song' },
+        };
+        lyricsMock.mockResolvedValue({ lyrics: null, isPureMusic: false });
+        autoMatchMock.mockResolvedValue(null);
+
+        await loadOnlineSongLyrics(pluginSong, null, null, {
+            isCurrent: () => true,
+            onLyrics: vi.fn(),
+            onDone: vi.fn(),
+        });
+
+        // 关掉开关、插件源无歌词能力，仍然触发自动匹配。
+        expect(autoMatchMock).toHaveBeenCalled();
+    });
+
+    it('falls back to auto-match when a plugin source with a getLyric throws', async () => {
+        // 插件源声明了 getLyric（canSongProviderLyrics true），但它的网络请求被拦截而抛错
+        // （net::ERR_BLOCKED_BY_CLIENT）。这个错误不能把整条链打断在取歌词这一步——否则自动
+        // 匹配永远跑不到，歌词就空白（正是「插件源有 getLyric 却还是没歌词」的根因）。
+        const pluginSong: SongResult = {
+            ...song,
+            sourceRef: { kind: 'online', providerId: 'musicfree.qq', mediaId: 'online-song' },
+        };
+        lyricsMock.mockRejectedValue(new Error('所有音源歌词均不可用（qq: net::ERR_BLOCKED_BY_CLIENT）'));
+        autoMatchMock.mockResolvedValue(null);
+
+        await loadOnlineSongLyrics(pluginSong, null, null, {
+            isCurrent: () => true,
+            onLyrics: vi.fn(),
+            onDone: vi.fn(),
+        });
+
+        // 插件源 getLyric 抛错后，自动匹配仍然接管。
+        expect(autoMatchMock).toHaveBeenCalled();
+    });
+
+    it('still rethrows a lyric fetch failure for a built-in source', async () => {
+        // 内置源的 getLyric 抛错要照常抛出，不降级成空歌词（保持原有错误语义）。
+        const builtinSong: SongResult = { ...song, sourceRef: { kind: 'online', providerId: 'kugou', mediaId: 'online-song' } };
+        lyricsMock.mockRejectedValue(new Error('boom'));
+        autoMatchMock.mockResolvedValue(null);
+
+        await expect(loadOnlineSongLyrics(builtinSong, null, null, {
+            isCurrent: () => true,
+            onLyrics: vi.fn(),
+            onDone: vi.fn(),
+        })).rejects.toThrow('boom');
+
+        expect(autoMatchMock).not.toHaveBeenCalled();
+    });
 });
 
 describe('instrumental tracks, once auto-match has settled them', () => {
@@ -484,6 +548,8 @@ describe('instrumental tracks, once auto-match has settled them', () => {
         vi.clearAllMocks();
         songCacheMock.mockResolvedValue(null);
         loadLyricsStateMock.mockResolvedValue(null);
+        canSongProviderLyricsMock.mockReturnValue(true);
+        autoUseBestLyricMock.mockReturnValue(true);
     });
 
     it('stores the verdict, so the search is not repeated on every play', async () => {

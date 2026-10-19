@@ -806,6 +806,12 @@ export const omni = {
         return Boolean(getOnlineMusicProviderForSong(song)?.playback);
     },
 
+    // 这首歌的在线来源自己能不能给歌词（有 `lyrics` 能力）。插件源通常只提供播放/搜索、没有 getLyric，
+    // 歌词只能靠在线自动匹配；调用方据此在关掉「自动使用最佳歌词」时仍为它跑一次匹配，而不是留白。
+    canSongProviderLyrics(song: SongResult): boolean {
+        return Boolean(getOnlineMusicProviderForSong(song)?.lyrics);
+    },
+
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
     // standard, high, lossless and hires without it): the ones the quality option shows for it.
     // Read anew on every call: a provider's list may change with its account.
@@ -884,7 +890,12 @@ export const omni = {
 
     async getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<OmniLyricsResult> {
         const provider = providerForSong(song);
-        if (!provider.lyrics) return unsupported(provider.id, 'lyrics');
+        // 没有歌词能力（MusicFree 插件源只提供播放/搜索、没有 getLyric）时不抛错：返回空结果，
+        // 让调用方继续走自动匹配（在线匹配），用内置的歌词源去搜。抛错会把整条加载链打断在取歌词
+        // 这一步，自动匹配就永远跑不到。
+        if (!provider.lyrics) {
+            return { lyrics: null, isPureMusic: false };
+        }
         const providerUserId = useOnlineProviderAccountStore.getState().accounts[provider.id]?.user?.id ?? context?.userId;
         const providerResult = await provider.lyrics.getLyrics(song, { ...context, userId: providerUserId });
         const resolved = (await resolveProviderLyricsChorus(providerResult, {
